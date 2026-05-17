@@ -22,7 +22,7 @@ build = { context = ".", dockerfile = "src/purple_car_bench_agent/Dockerfile.car
 name = "agent"
 # Environment variables - include all API keys the agent might need
 # AGENT_LLM: Specifies which LLM model to use (works in both local and GitHub Actions)
-env = { ANTHROPIC_API_KEY = "${ANTHROPIC_API_KEY}", OPENAI_API_KEY = "${OPENAI_API_KEY}", GEMINI_API_KEY = "${GEMINI_API_KEY}", AGENT_LLM = "anthropic/claude-haiku-4-5-20251001", LOGURU_LEVEL = "${LOGURU_LEVEL}" }
+env = { ANTHROPIC_API_KEY = "${ANTHROPIC_API_KEY}", OPENAI_API_KEY = "${OPENAI_API_KEY}", GEMINI_API_KEY = "${GEMINI_API_KEY}", AGENT_LLM = "openai/gpt-4o-mini" }
 # Command arguments (optional, AGENT_LLM env var is preferred for production)
 command_args = ["--agent-llm", "anthropic/claude-haiku-4-5-20251001"]
 

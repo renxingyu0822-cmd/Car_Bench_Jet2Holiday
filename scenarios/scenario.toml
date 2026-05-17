@@ -1,17 +1,19 @@
 [green_agent]
 endpoint = "http://127.0.0.1:8081"
+# cmd = "python src/green_car_bench_agent/server.py --host 127.0.0.1 --port 8081"
 cmd = "python src/green_car_bench_agent/server.py --host 127.0.0.1 --port 8081"
 
 [[participants]]
 role = "agent"
 endpoint = "http://127.0.0.1:8080"
-cmd = "python src/purple_car_bench_agent/server.py --host 127.0.0.1 --port 8080 --agent-llm claude-opus-4-5-20251101 --temperature 1.0 --thinking --reasoning-effort medium --interleaved-thinking"
+# cmd = "python src/purple_car_bench_agent/server.py --host 127.0.0.1 --port 8080 --agent-llm claude-opus-4-5-20251101 --temperature 1.0 --thinking --reasoning-effort medium --interleaved-thinking"
+cmd = "python src/purple_car_bench_agent/server.py --host 127.0.0.1 --port 8080 --agent-llm openai/gpt-4o-mini"
 
 [config]
-num_trials = 3
+num_trials = 1 #3
 task_split = "test"  # "train" or "test"
 # Specify number of tasks to run (first N tasks) or use task_id_filter for specific tasks
-tasks_base_num_tasks = 2 # First N tasks in type/split, -1 for all.
+tasks_base_num_tasks = 50 # First N tasks in type/split, -1 for all.
 tasks_hallucination_num_tasks = 0 # First N tasks in type/split, -1 for all.
 tasks_disambiguation_num_tasks = 0 # First N tasks in type/split, -1 for all.
 # Alternative: Run specific task IDs, priority over num_tasks. Have to be in the correct type/split (check task_split.json)

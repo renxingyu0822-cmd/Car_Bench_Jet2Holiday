@@ -322,7 +322,7 @@ requires-dist = [
     { name = "annotated-types", specifier = ">=0.7.0" },
     { name = "datasets", specifier = ">=3.0.0" },
     { name = "huggingface-hub", specifier = ">=0.25.0" },
-    { name = "litellm", specifier = ">=1.80.16" },
+    { name = "litellm", specifier = ">=1.80.16,<1.82.7" },
     { name = "networkx", specifier = ">=3.1" },
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "pandas", specifier = ">=2.2.0" },

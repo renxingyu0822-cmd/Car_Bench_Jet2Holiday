@@ -70,7 +70,9 @@ def main():
     # Support both command-line args and environment variables
     # Priority: CLI args > env vars > default
     import os
-    agent_llm = args.agent_llm or os.getenv("AGENT_LLM", "gemini/gemini-2.5-flash")
+    #agent_llm = args.agent_llm or os.getenv("AGENT_LLM", "gemini/gemini-2.5-flash")
+    agent_llm = args.agent_llm or os.getenv("AGENT_LLM", "openai/gpt-4o-mini")
+   
     completion_kwargs = {
         "temperature": args.temperature or float(os.getenv("AGENT_TEMPERATURE", 0.0)),
         "thinking": args.thinking or (os.getenv("AGENT_THINKING", "false").lower() == "true"),

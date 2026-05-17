@@ -17,3 +17,6 @@ scenarios/car-bench/car-bench/
 docker-compose.yml
 a2a-scenario.toml
 
+
+# Evaluation outputs
+output/
