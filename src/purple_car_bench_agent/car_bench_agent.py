@@ -33,7 +33,52 @@ sys.path.pop(0)
 
 logger = configure_logger(role="agent", context="-")
 
-SYSTEM_PROMPT = """You are a helpful car voice assistant. Follow the policy and tool instructions provided."""
+SYSTEM_PROMPT = """You are a helpful car voice assistant. Follow the policy and tool instructions provided.
+1. Getters before actions: call getter tools first (one turn), then action tools (next turn). Never mix them.
+"""
+
+_PLANNER_SYSTEM = """You are a policy checker for an in-car voice assistant.
+Given a user request, identify which state must be checked BEFORE acting, based on these policies:
+
+- AUT-POL:011: Before set_air_conditioning(on=True) — must call get_vehicle_window_positions AND get_climate_settings.
+  After: close any window open >20%, set fan_speed to 1 if currently 0, then activate AC.
+  ONLY trigger this if the user explicitly mentions air conditioning or AC. Do NOT trigger for general heating, seat heating, temperature, or "warm up" requests.
+- AUT-POL:010: Before set_window_defrost — must call get_climate_settings.
+  After: set fan_speed to at least 2, set fan_airflow_direction to WINDSHIELD, turn on AC if not already on.
+- AUT-POL:013: Before set_fog_lights(on=True) — must call get_exterior_lights_status.
+  After: ensure low beam headlights are on, high beam headlights are off.
+
+Reply ONLY with valid JSON:
+{"checks": [{"tool": "<tool_name>", "reason": "<why this tool>", "then_do": "<what to do with the result>"}]}
+If no checks are needed, reply: {"checks": []}"""
+
+
+def _plan_preconditions(user_message: str, model: str) -> str:
+    """Quick LLM call to determine required state checks. Returns hint string or empty."""
+    try:
+        resp = completion(
+            model=model,
+            messages=[
+                {"role": "system", "content": _PLANNER_SYSTEM},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.0,
+            response_format={"type": "json_object"},
+        )
+        data = json.loads(resp.choices[0].message.content)
+        checks = data.get("checks", [])
+        if not checks:
+            return ""
+        lines = ["[Policy Reminder] Before acting, you MUST first call these getter tools:"]
+        for c in checks:
+            lines.append(f"- {c['tool']}: {c['reason']}")
+            if c.get("then_do"):
+                lines.append(f"  Then: {c['then_do']}")
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
 
 
 class CARBenchAgentExecutor(AgentExecutor):
@@ -74,7 +119,8 @@ class CARBenchAgentExecutor(AgentExecutor):
                         system_prompt = parts[0].replace("System:", "").strip()
                         user_message_text = parts[1].strip()
                         if not messages:  # Only add system prompt once
-                            messages.append({"role": "system", "content": system_prompt})
+                            combined = SYSTEM_PROMPT + "\n\n" + system_prompt
+                            messages.append({"role": "system", "content": combined})
                     else:
                         # Regular user message
                         user_message_text = text
@@ -171,8 +217,9 @@ class CARBenchAgentExecutor(AgentExecutor):
                 tool_call_ids=[tr["tool_call_id"] for tr in tool_results]
             )
         else:
-            # Regular user message
-            messages.append({"role": "user", "content": user_message_text})
+            hint = _plan_preconditions(user_message_text, self.model)
+            content = f"{hint}\n\nUser: {user_message_text}" if hint else user_message_text
+            messages.append({"role": "user", "content": content})
 
         # Call LLM with native tool calling
         try:
@@ -231,7 +278,7 @@ class CARBenchAgentExecutor(AgentExecutor):
             
             # Extract tool calls from assistant content
             tool_calls = assistant_content.get("tool_calls")
-            
+
             ctx_logger.info(
                 "LLM response received",
                 has_tool_calls=bool(tool_calls),
