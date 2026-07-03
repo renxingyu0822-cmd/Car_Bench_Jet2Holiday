@@ -33,7 +33,16 @@ sys.path.pop(0)
 
 logger = configure_logger(role="agent", context="-")
 
-SYSTEM_PROMPT = """You are a helpful car voice assistant. Follow the policy and tool instructions provided."""
+SYSTEM_PROMPT = """
+You are a helpful car voice assistant. Follow the policy and tool instructions provided.
+1. Do not hallucinate tools or tool names. Only use the tools provided in the tool list.
+2. Always check in the tool description if parameters of tool calls are available and are sufficient for executing the task.
+3. The task may be impossible if the required information cannot be extracted from the available tools. In that case, respond with a polite message indicating that the task cannot be completed.
+Do not go into too much detail about why you are unable to complete the task, just give a concise and polite response. For example, \"I'm sorry, but I cannot complete this task as the required information is not available in the provided tools.\"
+4. Do not make up ids or values for tool calls. If there is no get function for an id or a value, tell the user that you cannot find the information.
+5. Do not ask the user for ids or other values the user most likely does not have.
+6. Tool calls might fail even with correct parameters, for example by returning unknown or null values. In that case find another way to obtain the information or tell the user that you are unable to complete the task.
+"""
 
 
 class CARBenchAgentExecutor(AgentExecutor):
@@ -74,7 +83,8 @@ class CARBenchAgentExecutor(AgentExecutor):
                         system_prompt = parts[0].replace("System:", "").strip()
                         user_message_text = parts[1].strip()
                         if not messages:  # Only add system prompt once
-                            messages.append({"role": "system", "content": system_prompt})
+                            combined = SYSTEM_PROMPT + "\n\n" + system_prompt
+                            messages.append({"role": "system", "content": combined})
                     else:
                         # Regular user message
                         user_message_text = text
@@ -85,6 +95,8 @@ class CARBenchAgentExecutor(AgentExecutor):
                     if "tools" in data:
                         tools = data["tools"]
                         self.ctx_id_to_tools[context.context_id] = tools
+                        #with open("tools.json", "w+") as f:
+                        #    json.dump(tools, f, indent=2)
                     elif "tool_results" in data:
                         # Structured tool results from the green agent
                         incoming_tool_results = data["tool_results"]
@@ -228,10 +240,40 @@ class CARBenchAgentExecutor(AgentExecutor):
             # Get the message from LLM
             llm_message = response.choices[0].message
             assistant_content = llm_message.model_dump(exclude_unset=True)
-            
+
             # Extract tool calls from assistant content
+            available_tools = [tool["function"]["name"] for tool in tools]
+            # # print("\n\nAvailable tools:", available_tools, "\n\n")
+            
             tool_calls = assistant_content.get("tool_calls")
             
+            if tool_calls and type(tool_calls) == list:
+                for tool_call in tool_calls:
+                    # print("\n\nTool calls:", tool_call, "\n\n")
+                    if "function" in tool_call:
+                        if "name" in tool_call["function"]:
+                            tool_call_name = tool_call["function"]["name"]
+                            isAvailable = False
+                            for available_tool in available_tools:
+                                if tool_call_name == available_tool:
+                                    print(f"\n\n{tool_call_name} is in tools\n\n")
+                                    isAvailable = True
+                                    break
+                            if isAvailable == False:
+                                # print(f"\n\n{tool_call_name} is NOT in tools\n\n")
+                                messages.append({"role": "system", "content": f"Tool '{tool_call_name}' does not exist. Don't hallucinate tools. Please refer to the tool list provided before."})
+                                response = completion(
+                                    messages=messages,
+                                    **completion_kwargs
+                                )
+                                llm_message = response.choices[0].message
+                                assistant_content = llm_message.model_dump(exclude_unset=True)
+                                break
+                            
+            tool_calls = assistant_content.get("tool_calls")
+                    #{'function': {'arguments': '{}', 'name': 'get_sunroof_and_sunshade_position'}, 'id': 'chatcmpl-tool-9b79e1d0ebfe15fa', 'type': 'function'} is NOT in tools
+            #Tool calls: {'function': {'arguments': '{"location_or_poi_id": "loc_aug_140718", "month": 1, "day": 10, "time_hour_24hformat": 19}', 'name': 'get_weather'}, 'id': 'chatcmpl-tool-8c45e45273a9db83', 'type': 'function'} 
+
             ctx_logger.info(
                 "LLM response received",
                 has_tool_calls=bool(tool_calls),
