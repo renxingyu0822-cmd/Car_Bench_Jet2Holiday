@@ -38,7 +38,7 @@ You are a helpful car voice assistant. Follow the policy and tool instructions p
 1. Do not hallucinate tools or tool names. Only use the tools provided in the tool list.
 2. Always check in the tool description if parameters of tool calls are available and are sufficient for executing the task.
 3. The task may be impossible if the required information cannot be extracted from the available tools. In that case, respond with a polite message indicating that the task cannot be completed.
-Do not go into too much detail about why you are unable to complete the task, just give a concise and polite response. For example, \"I'm sorry, but I cannot complete this task as the required information is not available in the provided tools.\"
+Do not go into too much detail about the technical reasons for the failure, just say that you are missing the required information and tools to complete the task.
 4. Do not make up ids or values for tool calls. If there is no get function for an id or a value, tell the user that you cannot find the information.
 5. Do not ask the user for ids or other values the user most likely does not have.
 6. Tool calls might fail even with correct parameters, for example by returning unknown or null values. In that case find another way to obtain the information or tell the user that you are unable to complete the task.
@@ -243,13 +243,38 @@ class CARBenchAgentExecutor(AgentExecutor):
 
             # Extract tool calls from assistant content
             available_tools = [tool["function"]["name"] for tool in tools]
-            # # print("\n\nAvailable tools:", available_tools, "\n\n")
             
+            invalid_tools = []
+            missing_params = []
+            invalid_params = []
+            def verifyParams(toolExec, toolDesc):
+                argumentExecString = toolExec["arguments"]
+                try:
+                    argumentExec = json.loads(argumentExecString)
+                except Exception as e:
+                    return
+                toolName = toolExec["name"]
+                print("arguments: ", argumentExec)
+                print(toolDesc)
+                requiredParams = toolDesc["required"] if "required" in toolDesc else []
+                print("required: ", requiredParams)
+                for param in requiredParams:
+                    if param not in argumentExec:
+                        print(f"\n\nrequired parameter '{param}' of {toolName} is NOT in props\n\n")
+                        missing_params.append((toolName, param))
+                    print(f"\n\nrequired parameter '{param}' of {toolName} is in props\n\n")
+                def verifyParamsRecursive(arguments, props, parent = ""):
+                    for argument in arguments.keys(): #TODO: check recursively for nested parameters
+                        if argument not in props:
+                            print(f"\n\n{argument} of {toolName} is NOT in props\n\n")
+                            invalid_params.append((toolName, argument))
+                        print(f"\n\n{argument} of {toolName} is in props\n\n")
+                verifyParamsRecursive(argumentExec, toolDesc["properties"], )   
+
             tool_calls = assistant_content.get("tool_calls")
             
             if tool_calls and type(tool_calls) == list:
                 for tool_call in tool_calls:
-                    # print("\n\nTool calls:", tool_call, "\n\n")
                     if "function" in tool_call:
                         if "name" in tool_call["function"]:
                             tool_call_name = tool_call["function"]["name"]
@@ -257,21 +282,40 @@ class CARBenchAgentExecutor(AgentExecutor):
                             for available_tool in available_tools:
                                 if tool_call_name == available_tool:
                                     print(f"\n\n{tool_call_name} is in tools\n\n")
+                                    print(f"\n\n{tools[available_tools.index(available_tool)]}\n\n")
                                     isAvailable = True
+                                    if "arguments" in tool_call["function"]:
+                                        verifyParams(tool_call["function"], tools[available_tools.index(available_tool)]["function"]["parameters"])
                                     break
                             if isAvailable == False:
-                                # print(f"\n\n{tool_call_name} is NOT in tools\n\n")
-                                messages.append({"role": "system", "content": f"Tool '{tool_call_name}' does not exist. Don't hallucinate tools. Please refer to the tool list provided before."})
-                                response = completion(
-                                    messages=messages,
-                                    **completion_kwargs
-                                )
-                                llm_message = response.choices[0].message
-                                assistant_content = llm_message.model_dump(exclude_unset=True)
+                                print(f"\n\n{tool_call_name} is NOT in tools\n\n")
+                                invalid_tools.append(tool_call_name)
                                 break
-                            
+
+                            #{'type': 'function', 'function': {'name': 'set_ambient_lights', 'description': "Vehicle Control: Turns the ambient light inside the car on (including the color) or off. Ambient light is the soft, decorative lighting inside the cabin, also referred to as 'surrounding light.", 'parameters': {'type': 'object', 'required': ['on'], 'properties': {'on': {'type': 'boolean', 'description': 'True to turn on the specified ambient light, False to turn off the ambient light.'}}, 'additionalProperties': False}}}
+
+            if not (invalid_tools == [] and missing_params == [] and invalid_params == []): 
+                print(f"\n\ninvalid_tools: {invalid_tools}\n missing_params: {missing_params}\n invalid_params: {invalid_params}\n\n")
+                content = ""
+                if not invalid_tools == []:
+                    content += f"Tool{'s' if len(invalid_tools) > 1 else ''} '{', '.join(invalid_tools)}' do{'es' if len(invalid_tools) == 1 else ''} not exist."
+                if not missing_params == []:
+                    for toolName, param in missing_params:
+                        content += f"Tool '{toolName}' is missing a required parameter '{param}'."
+                if not invalid_params == []:
+                    for toolName, param in invalid_params:
+                        content += f"Tool '{toolName}' does not have a parameter '{param}'."
+                content += "Please check the tool calls and parameters. If parameters or tools are insufficient try another approach."
+                messages.append({"role": "system", "content": content})
+                response = completion(
+                    messages=messages,
+                    **completion_kwargs
+                )
+                llm_message = response.choices[0].message
+                assistant_content = llm_message.model_dump(exclude_unset=True)
+                                
             tool_calls = assistant_content.get("tool_calls")
-                    #{'function': {'arguments': '{}', 'name': 'get_sunroof_and_sunshade_position'}, 'id': 'chatcmpl-tool-9b79e1d0ebfe15fa', 'type': 'function'} is NOT in tools
+                    #{'function': {'arguments': '{}', 'name': 'get_sunroof_and_sunshade_position'}, 'id': 'chatcmpl-tool-9b79e1d0ebfe15fa', 'type': 'function'}
             #Tool calls: {'function': {'arguments': '{"location_or_poi_id": "loc_aug_140718", "month": 1, "day": 10, "time_hour_24hformat": 19}', 'name': 'get_weather'}, 'id': 'chatcmpl-tool-8c45e45273a9db83', 'type': 'function'} 
 
             ctx_logger.info(
