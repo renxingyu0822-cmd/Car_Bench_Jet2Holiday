@@ -59,13 +59,14 @@ SYSTEM_PROMPT = """You are a helpful car voice assistant. Follow the policy and 
 
 11. Route selection: When you proactively select a route without the user specifying which one (e.g. you pick the fastest or shortest), you MUST inform the user which route you selected and why (e.g. "I selected the fastest route"). Then ask if they would like details on alternative routes before proceeding.
 
-12. Do not hallucinate tools or tool names. Only use the tools provided in the tool list.
+12. Do not hallucinate tools or tool names. Only use the tools provided in the tool list, if a tool is not in the list it does not exist even if listed elsewhere.
 13. Always check in the tool description if parameters of tool calls are available and are sufficient for executing the task.
 14. The task may be impossible if the required information cannot be extracted from the available tools. In that case, respond with a polite message indicating that the task cannot be completed.
 Do not go into too much detail about the technical reasons for the failure, just say that you are missing the required information and tools to complete the task.
 15. Do not make up ids or values for tool calls. If there is no get function for an id or a value, tell the user that you cannot find the information.
 16. Do not ask the user for ids or other values the user most likely does not have.
 17. Tool calls might fail even with correct parameters, for example by returning unknown or null values. In that case find another way to obtain the information or tell the user that you are unable to complete the task.
+18. If you think the user meant something else, ask for clarification instead of guessing.
 """
 
 
@@ -276,21 +277,14 @@ class CARBenchAgentExecutor(AgentExecutor):
                 except Exception as e:
                     return
                 toolName = toolExec["name"]
-                print("arguments: ", argumentExec)
-                print(toolDesc)
                 requiredParams = toolDesc["required"] if "required" in toolDesc else []
-                print("required: ", requiredParams)
                 for param in requiredParams:
                     if param not in argumentExec:
-                        print(f"\n\nrequired parameter '{param}' of {toolName} is NOT in props\n\n")
                         missing_params.append((toolName, param))
-                    print(f"\n\nrequired parameter '{param}' of {toolName} is in props\n\n")
                 def verifyParamsRecursive(arguments, props, parent = ""):
                     for argument in arguments.keys(): #TODO: check recursively for nested parameters
                         if argument not in props:
-                            print(f"\n\n{argument} of {toolName} is NOT in props\n\n")
                             invalid_params.append((toolName, argument))
-                        print(f"\n\n{argument} of {toolName} is in props\n\n")
                 verifyParamsRecursive(argumentExec, toolDesc["properties"], )   
 
             tool_calls = assistant_content.get("tool_calls")
@@ -303,14 +297,11 @@ class CARBenchAgentExecutor(AgentExecutor):
                             isAvailable = False
                             for available_tool in available_tools:
                                 if tool_call_name == available_tool:
-                                    print(f"\n\n{tool_call_name} is in tools\n\n")
-                                    print(f"\n\n{tools[available_tools.index(available_tool)]}\n\n")
                                     isAvailable = True
                                     if "arguments" in tool_call["function"]:
                                         verifyParams(tool_call["function"], tools[available_tools.index(available_tool)]["function"]["parameters"])
                                     break
                             if isAvailable == False:
-                                print(f"\n\n{tool_call_name} is NOT in tools\n\n")
                                 invalid_tools.append(tool_call_name)
                                 break
 
@@ -318,17 +309,17 @@ class CARBenchAgentExecutor(AgentExecutor):
 
             if not (invalid_tools == [] and missing_params == [] and invalid_params == []): 
                 print(f"\n\ninvalid_tools: {invalid_tools}\n missing_params: {missing_params}\n invalid_params: {invalid_params}\n\n")
-                content = ""
+                errors = {}
                 if not invalid_tools == []:
-                    content += f"Tool{'s' if len(invalid_tools) > 1 else ''} '{', '.join(invalid_tools)}' do{'es' if len(invalid_tools) == 1 else ''} not exist."
+                    errors["INVALID_TOOLS_ERROR"] = f"Tool{'s' if len(invalid_tools) > 1 else ''} '{', '.join(invalid_tools)}' do{'es' if len(invalid_tools) == 1 else ''} not exist."
                 if not missing_params == []:
                     for toolName, param in missing_params:
-                        content += f"Tool '{toolName}' is missing a required parameter '{param}'."
+                        errors[f"MISSING_PARAM_ERROR_{toolName}.{param}"] = f"Tool '{toolName}' is missing a required parameter '{param}'."
                 if not invalid_params == []:
                     for toolName, param in invalid_params:
-                        content += f"Tool '{toolName}' does not have a parameter '{param}'."
-                content += "Please check the tool calls and parameters. If parameters or tools are insufficient try another approach."
-                messages.append({"role": "system", "content": content})
+                        errors[f"INVALID_PARAM_ERROR_{toolName}.{param}"] = f"Tool '{toolName}' does not have a parameter '{param}'."
+                content = {"status": "FAILURE", "errors": errors}
+                messages.append({"role": "tool", "content": str(content)})
                 response = completion(
                     messages=messages,
                     **completion_kwargs
