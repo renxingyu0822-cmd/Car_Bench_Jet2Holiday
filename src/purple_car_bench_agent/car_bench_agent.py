@@ -285,7 +285,7 @@ class CARBenchAgentExecutor(AgentExecutor):
                     for argument in arguments.keys(): #TODO: check recursively for nested parameters
                         if argument not in props:
                             invalid_params.append((toolName, argument))
-                verifyParamsRecursive(argumentExec, toolDesc["properties"], )   
+                verifyParamsRecursive(argumentExec, toolDesc.get("properties", {}), )
 
             tool_calls = assistant_content.get("tool_calls")
             
