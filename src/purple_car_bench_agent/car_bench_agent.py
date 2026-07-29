@@ -61,10 +61,14 @@ SYSTEM_PROMPT = """You are a helpful car voice assistant. Follow the policy and 
 
 12. Do not hallucinate tools or tool names. Only use the tools provided in the tool list, if a tool is not in the list it does not exist even if listed elsewhere.
 13. Always check in the tool description if parameters of tool calls are available and are sufficient for executing the task.
+
 14. The task may be impossible if the required information cannot be extracted from the available tools. In that case, respond with a polite message indicating that the task cannot be completed.
 Do not go into too much detail about the technical reasons for the failure, just say that you are missing the required information and tools to complete the task.
+
 15. Do not make up ids or values for tool calls. If there is no get function for an id or a value, tell the user that you cannot find the information.
+
 16. Do not ask the user for ids or other values the user most likely does not have.
+
 17. Tool calls might fail even with correct parameters, for example by returning unknown or null values. In that case find another way to obtain the information or tell the user that you are unable to complete the task.
 18. If you think the user meant something else, ask for clarification instead of guessing.
 """
@@ -223,6 +227,12 @@ class CARBenchAgentExecutor(AgentExecutor):
                 "temperature": self.temperature,
             }
 
+            # Disable thinking for Gemini models (thinking is on by default and adds cost)
+            if "gemini" in self.model.lower():
+                completion_kwargs["extra_body"] = {
+                    "generationConfig": {"thinkingConfig": {"thinkingBudget": 0}}
+                }
+
             # Configure reasoning effort / thinking
             if self.thinking:
                     if self.model == "claude-opus-4-6":
@@ -285,7 +295,7 @@ class CARBenchAgentExecutor(AgentExecutor):
                     for argument in arguments.keys(): #TODO: check recursively for nested parameters
                         if argument not in props:
                             invalid_params.append((toolName, argument))
-                verifyParamsRecursive(argumentExec, toolDesc["properties"], )   
+                verifyParamsRecursive(argumentExec, toolDesc.get("properties", {}), )
 
             tool_calls = assistant_content.get("tool_calls")
             
