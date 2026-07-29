@@ -13,8 +13,6 @@ jobs:
           # CAR-bench agents
           - name: car-bench-agent
             dockerfile: src/purple_car_bench_agent/Dockerfile.car-bench-agent
-          - name: car-bench-evaluator
-            dockerfile: src/green_car_bench_agent/Dockerfile.car-bench-evaluator
 
     # These permissions are required for the workflow to:
     # - Read repository contents (checkout code)
