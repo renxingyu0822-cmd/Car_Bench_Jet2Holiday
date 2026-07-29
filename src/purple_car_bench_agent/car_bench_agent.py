@@ -37,15 +37,15 @@ SYSTEM_PROMPT = """You are a helpful car voice assistant. Follow the policy and 
 
 1. Getters before actions: call getter tools first (one turn), then action tools (next turn). Never mix them.
 
-2. State-check before action: Before ANY action involving windows, climate, lights, navigation, or seat settings, ALWAYS call the corresponding getter first (get_climate_status, get_lights_status, get_window_positions, get_current_navigation_state, get_seats_occupancy). Never skip this step even if you think you know the current state. Note: get_charging_specs_and_status returns car battery specs only — it does NOT substitute for charging calculations. For charging time use search_poi_at_location or search_poi_along_the_route (see Rule 8) to find a station, then calculate_charging_time_by_soc; for driving range use get_distance_by_soc.
+2. State-check before action: Before ANY action involving windows, climate, lights, navigation, or seat settings, ALWAYS call the corresponding getter first (get_climate_status, get_lights_status, get_window_positions, get_current_navigation_state, get_seats_occupancy). Never skip this step even if you think you know the current state. SPECIAL CASE — AC activation: Before calling set_air_conditioning to turn AC ON, you MUST call BOTH get_climate_status AND get_window_positions in the same getter turn, regardless of what the user said. This is a mandatory pre-check — never skip it. Note: get_charging_specs_and_status returns car battery specs only — it does NOT substitute for charging calculations. For charging time use search_poi_at_location or search_poi_along_the_route (see Rule 8) to find a station, then calculate_charging_time_by_soc; for driving range use get_distance_by_soc.
 
-3. Navigation editing: When navigation is ACTIVE, use editing tools only (navigation_replace_final_destination, navigation_replace_one_waypoint, navigation_add_one_waypoint, navigation_delete_one_waypoint). NEVER call set_new_navigation when navigation is active. navigation_replace_final_destination is ONLY for the FINAL destination — for intermediate waypoints always use navigation_replace_one_waypoint. When replacing the final destination, the route must start from the PREVIOUS waypoint (not the old destination). When replacing an intermediate waypoint, get BOTH new route segments (before and after) before calling navigation_replace_one_waypoint. Call navigation_delete_destination at most once per operation — never call it twice in a row. TOLL ROADS: After get_routes_from_start_to_destination returns results, if the route the user would take has includes_toll=true, you MUST inform the user about the toll roads and wait for their acknowledgment BEFORE calling set_new_navigation, navigation_replace_final_destination, navigation_replace_one_waypoint, or navigation_add_one_waypoint. This applies to BOTH active and inactive navigation — never set or change a route with tolls without prior user confirmation.
+3. Navigation editing: When navigation is ACTIVE, use editing tools only (navigation_replace_final_destination, navigation_replace_one_waypoint, navigation_add_one_waypoint, navigation_delete_one_waypoint). NEVER call set_new_navigation when navigation is active. navigation_replace_final_destination is ONLY for the FINAL destination — for intermediate waypoints always use navigation_replace_one_waypoint. When replacing the final destination, the route must start from the PREVIOUS waypoint (not the old destination). When replacing an intermediate waypoint, get BOTH new route segments (before and after) before calling navigation_replace_one_waypoint. Call navigation_delete_destination at most once per operation — never call it twice in a row. TOLL ROADS: After get_routes_from_start_to_destination returns results, scan ALL returned routes — if ANY route has includes_toll=true, you MUST inform the user about this and wait for their acknowledgment BEFORE calling set_new_navigation, navigation_replace_final_destination, navigation_replace_one_waypoint, or navigation_add_one_waypoint. This applies even if you plan to choose a toll-free route — the user must be informed that toll options exist. This applies to BOTH active and inactive navigation. DESTINATION DELETION: NEVER call navigation_delete_destination when there are no intermediate waypoints — this would delete the entire navigation. Only delete a waypoint when at least one other waypoint remains.
 
 4. Confirmation required (two steps): For send_email or any tool whose description starts with REQUIRES_CONFIRMATION (e.g. set_head_lights_high_beams), NEVER call the tool directly — even if the user explicitly says "send it" or "do it". You MUST always follow both steps:
    Step 1 — Gather all needed info. For send_email, you MUST call get_contact_information to obtain the recipient's actual email address before composing the draft. Then present the full details (recipients + email content, or action description) and end with an explicit question such as "Shall I send this?" or "Shall I proceed?". Do NOT call the tool in this step.
    Step 2 — Only after the user explicitly confirms (yes / ok / go ahead / similar), call the tool immediately. Do not ask again.
 
-5. Location IDs: NEVER use city names as location IDs. When adding or setting a NEW destination specified by name, ALWAYS call get_location_id_by_location_name first. When deleting or modifying waypoints already present in the current navigation state, use the IDs already returned by get_current_navigation_state — do NOT call get_location_id_by_location_name again for those.
+5. Location IDs: NEVER use city names as location IDs. When adding or setting a NEW destination specified by name, ALWAYS call get_location_id_by_location_name first. When deleting or modifying waypoints already present in the current navigation state, use the IDs already returned by get_current_navigation_state — do NOT call get_location_id_by_location_name again for those. Use the location ID EXACTLY as returned by the tool — do not modify, transliterate, or simplify it (e.g. do not convert "ü" to "u" or truncate the ID). If a tool call fails due to an invalid ID, do NOT retry with a guessed variation — tell the user the location could not be found.
 
 6. Tool capabilities: Never assume a tool is binary or limited beyond what its description says. If a tool accepts a percentage or range, use the exact value the user requests. Always call information-gathering tools when their output is needed to complete the task — do not skip them.
 
@@ -59,8 +59,8 @@ SYSTEM_PROMPT = """You are a helpful car voice assistant. Follow the policy and 
 
 11. Route selection: When you proactively select a route without the user specifying which one (e.g. you pick the fastest or shortest), you MUST inform the user which route you selected and why (e.g. "I selected the fastest route"). Then ask if they would like details on alternative routes before proceeding.
 
-12. Do not hallucinate tools or tool names. Only use the tools provided in the tool list, if a tool is not in the list it does not exist even if listed elsewhere.
-13. Always check in the tool description if parameters of tool calls are available and are sufficient for executing the task.
+12. Do not hallucinate tools or tool names. Only use the tools provided in the tool list for this conversation. If a tool is not explicitly listed in the current tools, it does NOT exist — do not call it, even if you know it from training or from previous conversations. When a needed tool is absent, say "I'm sorry, I'm not able to [action] as that functionality is not available."
+13. Always check in the tool description if parameters of tool calls are available. If a parameter does not appear in the tool's description, do NOT include it in the call — only use parameters explicitly listed in the tool schema.
 
 14. The task may be impossible if the required information cannot be extracted from the available tools. In that case, respond with a polite message indicating that the task cannot be completed.
 Do not go into too much detail about the technical reasons for the failure, just say that you are missing the required information and tools to complete the task.
@@ -71,7 +71,12 @@ Do not go into too much detail about the technical reasons for the failure, just
 
 17. Tool calls might fail even with correct parameters, for example by returning unknown or null values. In that case find another way to obtain the information or tell the user that you are unable to complete the task.
 18. If you think the user meant something else, ask for clarification instead of guessing.
-"""
+
+19. Do not substitute a missing tool with a similar one. If the exact tool needed to fulfill the user's request is not in the tool list, do NOT use a different tool that sounds similar or has overlapping functionality (e.g. do not use open_close_sunroof when open_close_sunshade is missing). Instead, tell the user clearly that you cannot perform that specific action because the required tool is not available.
+
+20. Do not give workarounds or alternative advice when a required tool is missing. If you cannot perform an action because the necessary tool is not available, explicitly tell the user "I'm sorry, I'm not able to [action] as that functionality is not available." Do not suggest alternatives, give tips, or explain related settings — just inform the user the action cannot be completed.
+
+21. Complete multi-step tasks fully: If the user's request involves multiple steps (e.g. check calendar then send an email, find a POI then navigate there), carry out ALL steps. Do not stop after the first step and wait — proceed through the full sequence unless a step explicitly requires user input (such as confirmation or a choice between options). Never consider a task done until the final action has been executed.
 
 
 class CARBenchAgentExecutor(AgentExecutor):
@@ -5993,6 +5998,33 @@ Additional disambiguation rules:
                         ),
                         "tool_calls": None,
                     }
+
+            # Guard: filter out any tool calls for tools not in available_tools.
+            # Disambiguation interceptors may inject tool calls without checking
+            # whether the tool was removed (hallucination tasks). This prevents
+            # HALLUCINATION_ERROR_REMOVED_TOOL from firing on injected calls.
+            if tool_calls:
+                filtered = [
+                    tc for tc in tool_calls
+                    if tc.get("function", {}).get("name") in available_tools
+                ]
+                if len(filtered) < len(tool_calls):
+                    if not filtered:
+                        # All injected calls target removed tools. Replace the
+                        # interceptor's action claim with a proper refusal so the
+                        # agent doesn't falsely assert it completed the action.
+                        tool_calls = None
+                        assistant_content["tool_calls"] = None
+                        assistant_content["content"] = (
+                            "I'm sorry, I'm not able to perform that action "
+                            "as that functionality is not available."
+                        )
+                    else:
+                        tool_calls = filtered
+                        assistant_content["tool_calls"] = tool_calls
+                else:
+                    tool_calls = filtered
+                    assistant_content["tool_calls"] = tool_calls
 
             ctx_logger.info(
                 "LLM response received",
