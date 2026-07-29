@@ -39,7 +39,7 @@ jobs:
           # GITHUB_TOKEN is automatically provided by GitHub Actions
           # No manual secret configuration needed!
           # It has permissions based on the 'permissions' block above
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Extract metadata for Docker
         id: meta
