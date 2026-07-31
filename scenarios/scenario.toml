@@ -9,33 +9,33 @@ endpoint = "http://127.0.0.1:8080"
 # cmd = "python src/purple_car_bench_agent/server.py --host 127.0.0.1 --port 8080 --agent-llm claude-opus-4-5-20251101 --temperature 1.0 --thinking --reasoning-effort medium --interleaved-thinking"
 # ****************************
 # free API provided by professor：
-# cmd = "python src/purple_car_bench_agent/server.py --host 127.0.0.1 --port 8080 --agent-llm openai/qwen3.5-397b-a17b"
+cmd = "python src/purple_car_bench_agent/server.py --host 127.0.0.1 --port 8080 --agent-llm openai/qwen3.5-397b-a17b"
 # mein gpt-4o-mini
 # cmd = "python src/purple_car_bench_agent/server.py --host 127.0.0.1 --port 8080 --agent-llm gpt-4o-mini"
-cmd = "python src/purple_car_bench_agent/server.py --host 127.0.0.1 --port 8080 --agent-llm o4-mini --thinking --reasoning-effort medium --temperature 1.0"
+# cmd = "python src/purple_car_bench_agent/server.py --host 127.0.0.1 --port 8080 --agent-llm o4-mini --thinking --reasoning-effort medium --temperature 1.0"
 
 [config]
 num_trials = 1 #3
 task_split = "test"  # "train" or "test"
 # Specify number of tasks to run (first N tasks) or use task_id_filter for specific tasks
 # tasks_base_num_tasks = 1 # First N tasks in type/split, -1 for all.
-tasks_hallucination_num_tasks = 0 # First N tasks in type/split, -1 for all.
-tasks_disambiguation_num_tasks = 0 # First N tasks in type/split, -1 for all.
+tasks_hallucination_num_tasks = -1 # First N tasks in type/split, -1 for all.
+tasks_disambiguation_num_tasks = -1 # First N tasks in type/split, -1 for all.
 tasks_base_num_tasks = -1 # First N tasks in type/split, -1 for all.
 
 # ****************************
 # free API provided by professor：
-# user_model = "meta-llama-3.1-8b-instruct"
+user_model = "meta-llama-3.1-8b-instruct"
 # mein gpt-4o-mini
-user_model = "gpt-4o-mini"
+# user_model = "gpt-4o-mini"
 
 user_provider = "openai"
 
 # ****************************
 # free API provided by professor：
-# policy_evaluator_model = "meta-llama-3.1-8b-instruct"
+policy_evaluator_model = "meta-llama-3.1-8b-instruct"
 # mein gpt-4o-mini
-policy_evaluator_model = "gpt-4o-mini"
+# policy_evaluator_model = "gpt-4o-mini"
 
 policy_evaluator_provider = "openai"
 # Alternative: Run specific task IDs, priority over num_tasks. Have to be in the correct type/split (check task_split.json)

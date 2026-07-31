@@ -22,6 +22,9 @@
 
 ---
 
+Note: most of this file was already defined, we made some modifications and added another section [Our Agent Implementation](#our-agent-implementation) to describe our work a bit more.
+
+
 ## Overview
 
 [**CAR-bench**](https://github.com/CAR-bench/car-bench) is instantiated in an **automotive in-car voice assistant domain** and evaluates the **epistemic reliability** of multi-turn, tool-using LLM agents in realistic, user-facing environments under uncertainty, ambiguity, and capability constraints. Unlike existing agent benchmarks that primarily assess task completion under idealized and fully specified conditions, CAR-bench shifts the evaluation focus toward whether an agent knows **when it can act**, **when it must gather more information**, and **when it should explicitly refuse or defer action** - critical capabilities for deployment in real-world applications.
@@ -165,9 +168,12 @@ The agentified CAR-bench provides **four evaluation modes** for different stages
 
 ---
 
-### A. Local Python Development (Recommended for Iteration)
+### A. Local Python Development (Recommended)
 
 **Fastest way to test code changes.** Agents run as local Python processes.
+
+> [!WARNING]
+> Might be problematic on windows machines, optimally run on linux or wsl linux subsystem.
 
 ```bash
 # Run evaluation with default settings
@@ -184,7 +190,7 @@ uv run agentbeats-run scenarios/scenario.toml --show-logs
 
 ---
 
-### B. Docker with Local Builds (Verify Dockerization)
+### B. Docker with Local Builds (Not tested) (Verify Dockerization)
 
 **Test your Docker setup before deployment.** Builds images from local Dockerfiles.
 
@@ -210,7 +216,7 @@ docker compose up --abort-on-container-exit
 
 ---
 
-### C. Docker with Published Images (Pre-Deployment Validation)
+### C. Docker with Published Images (Not tested) (Pre-Deployment Validation)
 
 **Test with production images before submitting to leaderboard.** Uses images from GitHub Container Registry.
 
@@ -251,7 +257,7 @@ This mode is **not in this repository**—it uses the official leaderboard infra
 
 ## Scenario Configuration
 
-All evaluation settings are controlled via `.toml` files. The `[config]` section maps to CAR-bench parameters:
+All evaluation settings are controlled via `.toml` files in the "scenarios" folder. The `[config]` section maps to CAR-bench parameters:
 
 ### Configuration Options
 
@@ -571,6 +577,11 @@ scenarios/car-bench/car-bench/     # Original CAR-bench (manually cloned in step
 ```
 
 ---
+
+## Our Agent Implementation
+We only worked on "src/purple_car_bench_agent/car_bench_agent.py". 
+First we have the SYSTEM_PROMPT in which we performed our prompt optimization.
+Our code modifications start at row 296. It starts with the tool / parameter verification up to row 356 and then continues with the disambiguation part. You can switch the branch to see the modifications that were made for a single task type. The user agent model needs to be a more powerful model like "Qwen 3.5 122B A10B", "Qwen 3.5 397B A17B" or "GLM-4.7" in order to run the hallucination tasks successful.
 
 ## Building Custom Agents
 
