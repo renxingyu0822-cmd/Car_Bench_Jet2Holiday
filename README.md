@@ -216,7 +216,7 @@ docker compose up --abort-on-container-exit
 
 ---
 
-### C. Docker with Published Images (Not tested) (Pre-Deployment Validation)
+### C. Docker with Published Images (Pre-Deployment Validation)
 
 **Test with production images before submitting to leaderboard.** Uses images from GitHub Container Registry.
 
